@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LLM Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0d0d14;--bg2:#13131e;--bg3:#1b1b28;--bg4:#23233a;
+  --accent:#6c63ff;--accent-lt:#8b85ff;--accent-dk:#4a44cc;
+  --text:#e2e0f0;--text2:#8884aa;--text3:#46446a;
+  --green:#34d399;--red:#f87171;--amber:#fbbf24;
+  --border:rgba(108,99,255,.18);--border2:rgba(108,99,255,.35);
+  --mono:'IBM Plex Mono',monospace;--sans:'Inter',sans-serif;
+  --r:10px;
+}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);height:100vh;overflow:hidden;font-size:14px;}
+
+/* ── SCREENS ── */
+.screen{display:none;height:100vh;}
+.screen.active{display:flex;}
+
+/* ─────────────────────── AUTH ─────────────────────── */
+#auth-screen{align-items:center;justify-content:center;background:radial-gradient(ellipse 70% 50% at 50% -10%,rgba(108,99,255,.14) 0%,transparent 70%);}
+.auth-wrap{width:340px;}
+.auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:32px;}
+.brand-icon{width:38px;height:38px;background:var(--accent-dk);border:1px solid var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:17px;color:var(--accent-lt);}
+.brand-name{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--text);letter-spacing:-.5px;}
+.brand-name em{color:var(--accent-lt);font-style:normal;}
+.auth-card{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px 24px;position:relative;overflow:hidden;}
+.auth-card::before{content:'';position:absolute;top:-1px;left:15%;right:15%;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);}
+.tabs{display:flex;background:var(--bg3);border-radius:8px;padding:3px;margin-bottom:20px;}
+.tab{flex:1;padding:6px;text-align:center;font-size:12px;font-weight:500;border-radius:6px;cursor:pointer;color:var(--text2);transition:all .2s;font-family:var(--mono);}
+.tab.active{background:var(--accent-dk);color:var(--accent-lt);}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11px;font-weight:500;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.7px;font-family:var(--mono);}
+.field input{width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);outline:none;transition:border-color .2s;}
+.field input:focus{border-color:var(--accent);}
+.field input::placeholder{color:var(--text3);}
+.btn-main{width:100%;padding:10px;background:var(--accent);border:none;border-radius:9px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .2s;margin-top:2px;}
+.btn-main:hover{background:var(--accent-lt);color:#fff;}
+.btn-main:disabled{opacity:.45;cursor:not-allowed;}
+.auth-msg{font-size:12px;margin-top:10px;padding:7px 10px;border-radius:7px;display:none;}
+.auth-msg.err{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);color:var(--red);}
+.auth-msg.ok{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);color:var(--green);}
+.auth-hint{margin-top:16px;font-size:11px;color:var(--text3);text-align:center;font-family:var(--mono);}
+
+/* ─────────────────────── CHAT ─────────────────────── */
+#chat-screen{flex-direction:row;}
+/* Sidebar */
+.sidebar{width:230px;min-width:230px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sb-head{padding:14px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.sb-brand{display:flex;align-items:center;gap:7px;}
+.sb-icon{width:26px;height:26px;background:var(--accent-dk);border:1px solid var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--accent-lt);}
+.sb-name{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);}
+.sb-name em{color:var(--accent-lt);font-style:normal;}
+.new-btn{margin:10px 10px 6px;padding:8px 10px;background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--accent-lt);font-size:12px;cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:6px;transition:all .2s;width:calc(100% - 20px);}
+.new-btn:hover{background:var(--accent-dk);border-color:var(--accent);}
+.sec-label{padding:6px 14px 4px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono);}
+.sess-list{flex:1;overflow-y:auto;padding:0 6px;}
+.sess-list::-webkit-scrollbar{width:3px;}
+.sess-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px;}
+.sess-item{padding:8px 8px;border-radius:8px;cursor:pointer;margin-bottom:2px;transition:background .15s;position:relative;}
+.sess-item:hover{background:var(--bg3);}
+.sess-item.active{background:var(--bg4);border:1px solid var(--border);}
+.sess-title{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:20px;}
+.sess-meta{font-size:10px;color:var(--text3);margin-top:2px;font-family:var(--mono);}
+.sess-del{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:18px;height:18px;background:rgba(248,113,113,.15);border:none;border-radius:4px;cursor:pointer;color:var(--red);font-size:10px;display:none;align-items:center;justify-content:center;}
+.sess-item:hover .sess-del{display:flex;}
+.sb-foot{padding:10px 12px;border-top:1px solid var(--border);}
+.user-row{display:flex;align-items:center;gap:8px;padding:7px 8px;background:var(--bg3);border-radius:8px;}
+.u-avatar{width:26px;height:26px;border-radius:50%;background:var(--accent-dk);border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--accent-lt);font-family:var(--mono);flex-shrink:0;}
+.u-info{flex:1;min-width:0;}
+.u-name{font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.u-status{font-size:10px;color:var(--green);font-family:var(--mono);display:flex;align-items:center;gap:3px;}
+.u-dot{width:5px;height:5px;background:var(--green);border-radius:50%;}
+.logout-btn{background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;transition:color .2s;padding:2px;}
+.logout-btn:hover{color:var(--red);}
+/* Main */
+.chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.chat-head{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(13,13,20,.85);}
+.chat-title-text{font-size:14px;font-weight:500;color:var(--text);}
+.chat-meta-text{font-size:11px;color:var(--text2);font-family:var(--mono);}
+.model-pill{padding:3px 10px;background:rgba(108,99,255,.12);border:1px solid var(--border2);border-radius:20px;font-size:11px;font-family:var(--mono);color:var(--accent-lt);display:flex;align-items:center;gap:5px;}
+.blink{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:blink 1.5s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.msgs{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;}
+.msgs::-webkit-scrollbar{width:4px;}
+.msgs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px;}
+/* Empty state */
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--text3);text-align:center;padding:40px;}
+.empty-icon{font-size:32px;width:56px;height:56px;border:1px solid var(--border2);border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--bg3);}
+.empty-title{font-size:15px;color:var(--text2);font-weight:500;}
+.empty-sub{font-size:12px;}
+.chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:4px;}
+.chip{padding:6px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:11px;color:var(--text2);cursor:pointer;transition:all .2s;}
+.chip:hover{border-color:var(--accent);color:var(--accent-lt);background:var(--bg4);}
+/* Messages */
+.msg{display:flex;gap:10px;animation:fadeUp .25s ease;}
+.msg.user{flex-direction:row-reverse;align-self:flex-end;max-width:75%;}
+.msg.assistant{align-self:flex-start;max-width:85%;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg-av{width:28px;height:28px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-family:var(--mono);}
+.msg.user .msg-av{background:var(--accent-dk);border:1px solid var(--accent);color:var(--accent-lt);}
+.msg.assistant .msg-av{background:var(--bg4);border:1px solid var(--border);color:var(--text2);}
+.msg-body{}
+.msg-bubble{padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.65;}
+.msg.user .msg-bubble{background:rgba(108,99,255,.18);border:1px solid var(--border2);border-top-right-radius:3px;}
+.msg.assistant .msg-bubble{background:var(--bg2);border:1px solid var(--border);border-top-left-radius:3px;}
+.msg-time{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:3px;}
+.msg.user .msg-time{text-align:right;}
+/* Typing */
+.typing-dots{display:flex;gap:4px;padding:4px 0;}
+.typing-dot{width:6px;height:6px;background:var(--text2);border-radius:50%;animation:bounce 1.2s infinite;}
+.typing-dot:nth-child(2){animation-delay:.2s;}
+.typing-dot:nth-child(3){animation-delay:.4s;}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+/* Code in messages */
+.msg-bubble pre{background:var(--bg3);padding:10px 12px;border-radius:7px;font-family:var(--mono);font-size:11px;margin:8px 0;overflow-x:auto;white-space:pre-wrap;border:1px solid var(--border);}
+.msg-bubble code{background:var(--bg4);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:11px;}
+/* Input */
+.input-area{padding:12px 20px 16px;background:rgba(13,13,20,.9);border-top:1px solid var(--border);}
+.input-row{display:flex;align-items:flex-end;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:8px 8px 8px 14px;transition:border-color .2s;}
+.input-row:focus-within{border-color:var(--accent);}
+#msg-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:13px;font-family:var(--sans);resize:none;max-height:120px;min-height:20px;line-height:1.5;}
+#msg-input::placeholder{color:var(--text3);}
+#msg-input::-webkit-scrollbar{width:3px;}
+#msg-input::-webkit-scrollbar-thumb{background:var(--border2);}
+.send-btn{width:32px;height:32px;background:var(--accent);border:none;border-radius:8px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
+.send-btn:hover{background:var(--accent-lt);}
+.send-btn:disabled{opacity:.35;cursor:not-allowed;}
+.input-hint{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:6px;padding:0 2px;}
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;padding:9px 14px;border-radius:8px;font-size:12px;z-index:9999;animation:slideR .25s ease;max-width:260px;}
+.toast.e{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red);}
+.toast.s{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);color:var(--green);}
+.toast.i{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);}
+@keyframes slideR{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ AUTH SCREEN ══════════════ -->
+<div id="auth-screen" class="screen active">
+  <div class="auth-wrap">
+    <div class="auth-brand">
+      <div class="brand-icon">⬡</div>
+      <div class="brand-name">llm<em>chat</em></div>
+    </div>
+    <div class="auth-card">
+      <div class="tabs">
+        <div class="tab active" id="t-login" onclick="switchTab('login')">sign in</div>
+        <div class="tab" id="t-signup" onclick="switchTab('signup')">sign up</div>
+      </div>
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="a-user" placeholder="your_username" autocomplete="username"/>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="a-pass" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <div class="field" id="confirm-f" style="display:none;">
+        <label>Confirm Password</label>
+        <input type="password" id="a-conf" placeholder="••••••••"/>
+      </div>
+      <button class="btn-main" id="auth-btn" onclick="doAuth()">Sign In</button>
+      <div class="auth-msg" id="auth-msg"></div>
+    </div>
+    <div class="auth-hint">powered by llama3-8b · groq · sqlite</div>
+  </div>
+</div>
+
+<!-- ══════════════ CHAT SCREEN ══════════════ -->
+<div id="chat-screen" class="screen">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-head">
+      <div class="sb-brand">
+        <div class="sb-icon">⬡</div>
+        <div class="sb-name">llm<em>chat</em></div>
+      </div>
+    </div>
+    <button class="new-btn" onclick="newChat()">+ new chat</button>
+    <div class="sec-label">history</div>
+    <div class="sess-list" id="sess-list"></div>
+    <div class="sb-foot">
+      <div class="user-row">
+        <div class="u-avatar" id="u-av">?</div>
+        <div class="u-info">
+          <div class="u-name" id="u-name">—</div>
+          <div class="u-status"><div class="u-dot"></div>online</div>
+        </div>
+        <button class="logout-btn" onclick="doLogout()" title="Sign out">⏻</button>
+      </div>
+    </div>
+  </div>
+  <!-- Main -->
+  <div class="chat-main">
+    <div class="chat-head">
+      <div>
+        <div class="chat-title-text" id="ch-title">New Conversation</div>
+        <div class="chat-meta-text" id="ch-meta">0 messages</div>
+      </div>
+      <div class="model-pill"><div class="blink"></div>llama3-8b-8192</div>
+    </div>
+    <div class="msgs" id="msgs">
+      <div class="empty" id="empty-state">
+        <div class="empty-icon">⬡</div>
+        <div class="empty-title">Ask anything</div>
+        <div class="empty-sub">Conversations are saved to your account.</div>
+        <div class="chips">
+          <div class="chip" onclick="quickSend('Explain machine learning in simple terms')">Explain ML</div>
+          <div class="chip" onclick="quickSend('Write a Python quicksort function')">Python quicksort</div>
+          <div class="chip" onclick="quickSend('What is the difference between SQL and NoSQL?')">SQL vs NoSQL</div>
+          <div class="chip" onclick="quickSend('Give me 5 productivity tips for developers')">Dev tips</div>
+        </div>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="msg-input" placeholder="Message…" rows="1"
+          onkeydown="onKey(event)" oninput="resize(this)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMsg()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="2" y1="8" x2="14" y2="8"/><polyline points="9,3 14,8 9,13"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">↵ send &nbsp;·&nbsp; shift+↵ newline</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let username = null;
+let currentSid = null;
+let busy = false;
+
+// ── Auth tab ─────────────────────────────────────────────────────────────────
+let authMode = 'login';
+function switchTab(m) {
+  authMode = m;
+  ['login','signup'].forEach(x=>{
+    document.getElementById('t-'+x).classList.toggle('active', x===m);
+  });
+  document.getElementById('confirm-f').style.display = m==='signup'?'block':'none';
+  document.getElementById('auth-btn').textContent = m==='login'?'Sign In':'Create Account';
+  hideMsg();
+}
+function showMsg(txt,type){const el=document.getElementById('auth-msg');el.textContent=txt;el.className='auth-msg '+(type==='ok'?'ok':'err');el.style.display='block';}
+function hideMsg(){document.getElementById('auth-msg').style.display='none';}
+
+async function doAuth() {
+  const u = document.getElementById('a-user').value.trim();
+  const p = document.getElementById('a-pass').value;
+  if (!u||!p){showMsg('Please fill in all fields.','err');return;}
+  const btn = document.getElementById('auth-btn');
+  btn.disabled=true;
+  if (authMode==='signup') {
+    const c = document.getElementById('a-conf').value;
+    if (p!==c){showMsg('Passwords do not match.','err');btn.disabled=false;return;}
+    const r = await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const d = await r.json();
+    if(!d.ok){showMsg(d.error,'err');btn.disabled=false;return;}
+    showMsg('Account created!','ok');
+    setTimeout(()=>enterChat(u),600);
+  } else {
+    const r = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const d = await r.json();
+    if(!d.ok){showMsg(d.error,'err');btn.disabled=false;return;}
+    enterChat(u);
+  }
+}
+
+function enterChat(u) {
+  username = u;
+  document.getElementById('auth-screen').classList.remove('active');
+  document.getElementById('chat-screen').classList.add('active');
+  document.getElementById('u-name').textContent = u;
+  document.getElementById('u-av').textContent = u[0].toUpperCase();
+  loadSessions().then(()=>newChat());
+  toast('Welcome, '+u+'!','s');
+}
+
+async function doLogout() {
+  await fetch('/api/logout',{method:'POST'});
+  location.reload();
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.getElementById('a-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});
+document.getElementById('a-user').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('a-pass').focus();});
+document.getElementById('a-conf').addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+async function loadSessions() {
+  const r = await fetch('/api/sessions');
+  const d = await r.json();
+  renderSidebar(d.sessions||[]);
+}
+
+function renderSidebar(sessions) {
+  const el = document.getElementById('sess-list');
+  if(!sessions.length){
+    el.innerHTML='<div style="padding:10px 12px;font-size:11px;color:var(--text3);font-family:var(--mono);">no chats yet</div>';
+    return;
+  }
+  el.innerHTML = sessions.map(s=>`
+    <div class="sess-item ${s.id===currentSid?'active':''}" onclick="openSession(${s.id})">
+      <div class="sess-title">${esc(s.title)}</div>
+      <div class="sess-meta">${s.msg_count} msgs</div>
+      <button class="sess-del" onclick="delSession(${s.id},event)">✕</button>
+    </div>`).join('');
+}
+
+async function newChat() {
+  const r = await fetch('/api/sessions',{method:'POST'});
+  const d = await r.json();
+  currentSid = d.session_id;
+  await loadSessions();
+  clearMessages();
+  setHeader('New Conversation','0 messages');
+}
+
+async function openSession(sid) {
+  currentSid = sid;
+  const r = await fetch('/api/sessions/'+sid+'/messages');
+  const d = await r.json();
+  renderMessages(d.messages||[]);
+  await loadSessions();
+  const msgs = d.messages||[];
+  setHeader(msgs.length?msgs[0].content.slice(0,50):'New Conversation', msgs.length+' messages');
+}
+
+async function delSession(sid,e) {
+  e.stopPropagation();
+  await fetch('/api/sessions/'+sid,{method:'DELETE'});
+  if(currentSid===sid){currentSid=null;clearMessages();}
+  await loadSessions();
+  if(!currentSid) newChat();
+}
+
+// ── Messages ──────────────────────────────────────────────────────────────────
+function clearMessages(){
+  document.getElementById('msgs').innerHTML=`
+    <div class="empty" id="empty-state">
+      <div class="empty-icon">⬡</div>
+      <div class="empty-title">Ask anything</div>
+      <div class="empty-sub">Conversations are saved to your account.</div>
+      <div class="chips">
+        <div class="chip" onclick="quickSend('Explain machine learning in simple terms')">Explain ML</div>
+        <div class="chip" onclick="quickSend('Write a Python quicksort function')">Python quicksort</div>
+        <div class="chip" onclick="quickSend('What is the difference between SQL and NoSQL?')">SQL vs NoSQL</div>
+        <div class="chip" onclick="quickSend('Give me 5 productivity tips for developers')">Dev tips</div>
+      </div>
+    </div>`;
+}
+
+function renderMessages(msgs) {
+  const el = document.getElementById('msgs');
+  if(!msgs.length){clearMessages();return;}
+  el.innerHTML = msgs.map(m=>msgHTML(m)).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function msgHTML(m) {
+  const av = m.role==='user'?(username?username[0].toUpperCase():'U'):'⬡';
+  const time = new Date(m.created).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  return `<div class="msg ${m.role}">
+    <div class="msg-av">${av}</div>
+    <div class="msg-body">
+      <div class="msg-bubble">${fmt(m.content)}</div>
+      <div class="msg-time">${time}</div>
+    </div>
+  </div>`;
+}
+
+function appendMsg(m) {
+  const es = document.getElementById('empty-state');
+  if(es) es.remove();
+  const el = document.getElementById('msgs');
+  el.insertAdjacentHTML('beforeend', msgHTML(m));
+  el.scrollTop = el.scrollHeight;
+}
+
+function showTyping() {
+  const es = document.getElementById('empty-state');
+  if(es) es.remove();
+  const el = document.getElementById('msgs');
+  el.insertAdjacentHTML('beforeend',`<div id="typing-msg" class="msg assistant">
+    <div class="msg-av">⬡</div>
+    <div class="msg-body"><div class="msg-bubble">
+      <div class="typing-dots">
+        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+      </div>
+    </div></div>
+  </div>`);
+  el.scrollTop = el.scrollHeight;
+}
+function hideTyping(){const t=document.getElementById('typing-msg');if(t)t.remove();}
+
+// ── Send ──────────────────────────────────────────────────────────────────────
+async function sendMsg() {
+  if(busy||!currentSid) return;
+  const inp = document.getElementById('msg-input');
+  const txt = inp.value.trim();
+  if(!txt) return;
+  inp.value=''; resize(inp);
+
+  appendMsg({role:'user',content:txt,created:new Date().toISOString()});
+  busy=true;
+  document.getElementById('send-btn').disabled=true;
+  showTyping();
+
+  try {
+    const r = await fetch('/api/sessions/'+currentSid+'/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:txt})
+    });
+    const d = await r.json();
+    hideTyping();
+    appendMsg({role:'assistant',content:d.reply||'(no response)',created:new Date().toISOString()});
+    await loadSessions();
+    // update header
+    const msgs = document.querySelectorAll('.msg');
+    setHeader(txt.slice(0,50), msgs.length+' messages');
+  } catch(e) {
+    hideTyping();
+    appendMsg({role:'assistant',content:'Connection error. Is the server running?',created:new Date().toISOString()});
+    toast('Request failed','e');
+  }
+  busy=false;
+  document.getElementById('send-btn').disabled=false;
+  document.getElementById('msg-input').focus();
+}
+
+function quickSend(txt){document.getElementById('msg-input').value=txt;sendMsg();}
+function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setHeader(t,m){document.getElementById('ch-title').textContent=t;document.getElementById('ch-meta').textContent=m;}
+function resize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmt(s){
+  return esc(s)
+    .replace(/```([\s\S]*?)```/g,'<pre>$1</pre>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+}
+function toast(msg,type='i'){
+  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  const t=document.createElement('div');
+  t.className='toast '+type; t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),2800);
+}
+
+// ── Check session on load ─────────────────────────────────────────────────────
+(async()=>{
+  const r = await fetch('/api/whoami');
+  const d = await r.json();
+  if(d.loggedIn) enterChat(d.username);
+})();
+</script>
+</body>
+</html>
