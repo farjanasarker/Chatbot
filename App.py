@@ -8,7 +8,13 @@ from Database import (
     update_session_title, add_message, get_messages,
     session_belongs_to
 )
-from groq import Groq
+# ── Commented out Groq API ──────────────────
+# from groq import Groq
+# import os
+
+# ── Local LLM imports ───────────────────────
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
 import os
 
 from dotenv import load_dotenv
@@ -17,14 +23,39 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production-xyz123")
 
-# ── Groq client (llama3-8b-8192 — free, fast, open-source) ──────────────────
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
+# ── Commented out Groq client ───────────────
+# groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
 
-MODEL   = "llama-3.1-8b-instant"   # lightweight open-source model via Groq
-SYSTEM  = (
-    "You are a helpful, concise AI assistant. "
-    "Answer clearly and in the same language the user writes in."
-)
+# ── Local LLM setup (Qwen 2.5 7B - full model for production) 1.5B , 3B ──────────
+MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
+tokenizer = None
+model = None
+
+def load_model():
+    global tokenizer, model
+    if tokenizer is None or model is None:
+        print("Loading Qwen 2.5 3B model...")
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            torch_dtype=torch.float16,
+            device_map="auto",
+            trust_remote_code=True
+        )
+        print("Model loaded successfully!")
+
+# Don't load model on startup - load on first request
+# load_model()
+
+# ── Load system prompt from file ──────────────────
+def load_system_prompt():
+    try:
+        with open("System_Prompt.txt", "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return "You are a helpful AI assistant."
+
+SYSTEM = load_system_prompt()
 
 init_db()   # create tables on startup
 
@@ -141,18 +172,64 @@ def chat(sid):
     if len(history) == 1:
         update_session_title(sid, user_q[:60])
 
-    # Build message list for Groq (role + content only)
-    groq_msgs = [{"role": m["role"], "content": m["content"]} for m in history]
+    # Build message list for local LLM
+    messages = [{"role": "system", "content": SYSTEM}] + history
 
+    # ── Commented out Groq API call ─────────
     # Call Groq → llama3-8b (open-source, lightweight)
+    # try:
+    #     completion = groq_client.chat.completions.create(
+    #         model=MODEL,
+    #         messages=messages,
+    #         max_tokens=1024,
+    #         temperature=0.7,
+    #     )
+    #     reply = completion.choices[0].message.content
+    # except Exception as e:
+    #     reply = f"[Model error: {e}]"
+
+    # ── Local LLM inference ─────────────────
     try:
-        completion = groq_client.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "system", "content": SYSTEM}] + groq_msgs,
-            max_tokens=1024,
-            temperature=0.7,
-        )
-        reply = completion.choices[0].message.content
+        # Ensure model is loaded
+        load_model()
+
+        # Format messages for Qwen model
+        formatted_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                formatted_messages.append(f"System: {msg['content']}")
+            elif msg["role"] == "user":
+                formatted_messages.append(f"User: {msg['content']}")
+            elif msg["role"] == "assistant":
+                formatted_messages.append(f"Assistant: {msg['content']}")
+
+        # Combine messages into a single prompt
+        prompt = "\n".join(formatted_messages) + "\nAssistant:"
+
+        # Tokenize input
+        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+        # Generate response
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=256,
+                temperature=0.7,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
+
+        # Decode response
+        full_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+        # Extract only the assistant's response (after the last "Assistant:")
+        assistant_responses = full_response.split("Assistant:")
+        reply = assistant_responses[-1].strip() if assistant_responses else full_response.strip()
+
+        # Clean up the response
+        if not reply:
+            reply = "I apologize, but I couldn't generate a response. Please try again."
+
     except Exception as e:
         reply = f"[Model error: {e}]"
 
