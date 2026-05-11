@@ -36,12 +36,25 @@ def load_model():
     if tokenizer is None or model is None:
         print("Loading Qwen 2.5 3B model...")
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-        model = AutoModelForCausalLM.from_pretrained(
-            MODEL_NAME,
-            torch_dtype=torch.float16,
-            device_map="auto",
-            trust_remote_code=True
-        )
+        
+        # Use device_map only if CUDA is available (GPU)
+        # For CPU, load directly without device_map
+        if torch.cuda.is_available():
+            print("GPU detected. Using device_map='auto'...")
+            model = AutoModelForCausalLM.from_pretrained(
+                MODEL_NAME,
+                torch_dtype=torch.float16,
+                device_map="auto",
+                trust_remote_code=True
+            )
+        else:
+            print("CPU mode. Loading model to CPU (float32)...")
+            model = AutoModelForCausalLM.from_pretrained(
+                MODEL_NAME,
+                torch_dtype=torch.float32,
+                trust_remote_code=True
+            ).to("cpu")
+        
         print("Model loaded successfully!")
 
 # Don't load model on startup - load on first request
