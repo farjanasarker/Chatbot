@@ -27,7 +27,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production-xyz123")
 # groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
 
 # ── Local LLM setup (Qwen 2.5 7B - full model for production) 1.5B , 3B ──────────
-MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
+MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
 tokenizer = None
 model = None
 
@@ -37,7 +37,7 @@ def load_model():
         # Lazy import to avoid hanging on transformers initialization
         from transformers import AutoTokenizer, AutoModelForCausalLM
         
-        print("[MODEL] Loading Qwen 2.5 3B model...")
+        print("[MODEL] Loading Qwen 2.5 1.5B model...")
         print("[MODEL] Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         print("[MODEL] Tokenizer loaded.")
@@ -204,34 +204,9 @@ def chat(sid):
     if len(history) == 1:
         update_session_title(sid, user_q[:60])
 
-    # ════════════════════════════════════════════════════════════════
-    # OPTIMIZATION 1: Message Windowing & Context Compression
-    # ════════════════════════════════════════════════════════════════
-    
-    # Convert DB format to dict format (role/content)
-    formatted_history = [
-        {"role": msg["role"], "content": msg["content"]} 
-        for msg in history
-    ]
-    
-    # Optimize context: window messages + reduce system prompt
-    opt_system, windowed_messages = optimizer.build_optimized_context(
-        system_prompt=SYSTEM,
-        messages=formatted_history,
-        max_context_tokens=800  # REDUCED from 1500 for faster CPU inference
-    )
-    
-    # Build final message list
-    messages = [{"role": "system", "content": opt_system}] + windowed_messages
-    
-    # Log optimization metrics
-    original_count = len(formatted_history)
-    windowed_count = len(windowed_messages)
-    system_tokens = optimizer.estimate_tokens(opt_system)
-    original_system_tokens = optimizer.estimate_tokens(SYSTEM)
-    
-    print(f"[PERF] Session {sid}: {original_count} msgs → {windowed_count} windowed | "
-          f"System: {original_system_tokens} → {system_tokens} tokens")
+
+    messages = [{"role": "user", "content": user_q}]
+ 
 
     # ════════════════════════════════════════════════════════════════
     # OPTIMIZATION 2: Local LLM inference with better parameters
